@@ -266,7 +266,8 @@ export const useStore = create<State>((set, get) => ({
       past: [],
       future: [],
       view: 'editor',
-      dialog: p.boards.length ? null : 'newCanvas',
+      dialog: null,
+      tool: p.boards.length ? 'select' : 'frame',
     });
   },
 

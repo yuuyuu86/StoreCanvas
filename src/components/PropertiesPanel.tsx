@@ -5,6 +5,7 @@ import { presetById, PRESETS, PRESETS_CHECKED_AT, STORE_LABEL } from '../presets
 import { DEVICE_LABEL, FONTS } from '../lib/factory';
 import { pickImageFiles, readFileAsDataURL } from '../lib/image';
 import { Icon } from './Icon';
+import { FramePresetsPanel } from './FramePresetsPanel';
 
 const r = (n: number) => Math.round(n * 100) / 100;
 
@@ -371,6 +372,8 @@ export function PropertiesPanel() {
   const board = useStore(currentBoard);
   const selected = useStore((s) => s.selected);
   const st = useStore.getState();
+  const tool = useStore((x) => x.tool);
+  if (tool === 'frame') return <FramePresetsPanel />;
   if (!board) return <aside className="right" />;
   const els = board.elements.filter((e) => selected.includes(e.id));
   const grouped = els.length > 1 && els.every((e) => e.groupId && e.groupId === els[0].groupId);

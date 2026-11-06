@@ -291,3 +291,11 @@ button:disabled { cursor: default; opacity: 0.4; }
 .swatch.on { box-shadow: 0 0 0 2px var(--accent); }
 .canvas-wrap.pan { cursor: grab; }
 .canvas-wrap.frame-tool { cursor: crosshair; }
+.preset-group { gap: 2px; }
+.preset-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: grab; }
+.preset-item:hover { background: var(--accent-weak); }
+.preset-item .preset-name { flex: 1; min-width: 0; font-size: 12px; }
+.preset-item small { font-size: 11px; font-variant-numeric: tabular-nums; }
+.preset-shape { display: inline-block; flex: none; border: 1.5px solid var(--accent); border-radius: 2px; background: #fff; max-width: 18px; max-height: 18px; }
+.canvas-empty { position: absolute; inset: 0; pointer-events: none; text-align: center; padding: 0 40px; }
+.preset-icon { width: 20px; height: 20px; display: grid; place-items: center; flex: none; }

@@ -8,6 +8,7 @@ import { BoardNodes, deviceScreenRect, type NodeHandlers } from './BoardNodes';
 import { elementBounds, intersects, type Box } from '../lib/geometry';
 import { readFileAsDataURL, loadImage } from '../lib/image';
 import { makeBoard, makeImage } from '../lib/factory';
+import { addPresetFrame, PRESET_MIME } from './FramePresetsPanel';
 
 const ACCENT = '#1f5c3f';
 const FIT_PAD = 80;
@@ -215,7 +216,13 @@ export function EditorCanvas() {
           st.selectIn(board.id, ids);
         } else st.selectIn(board.id, cur);
       },
-      onDragStart(_e, el) {
+      onDragStart(e, el) {
+        // フレームツール中・パン中は要素を動かさない
+        if (useStore.getState().tool === 'frame' || spaceDown) {
+          e.target.stopDrag();
+          dragStarts.current.clear();
+          return;
+        }
         const ids = groupIds(el);
         const cur = sel();
         const eff = ids.every((i) => cur.includes(i)) ? cur : ids;
@@ -229,6 +236,7 @@ export function EditorCanvas() {
       onDragMove(e, el) {
         const node = e.target;
         const start = dragStarts.current.get(el.id);
+        if (!start) return;
         const bg = nodeById(`board:${board.id}`);
         if (!start || !bg) return;
         const exclude = new Set(dragStarts.current.keys());
@@ -257,6 +265,7 @@ export function EditorCanvas() {
       },
       onDragEnd(_e, el) {
         const ids = [...dragStarts.current.keys()];
+        if (!ids.length) return;
         const pos = new Map<string, Pt>();
         for (const id of ids) {
           const nd = nodeById(id);
@@ -359,11 +368,9 @@ export function EditorCanvas() {
     if (draft) {
       const box = { x: Math.min(draft.x0, draft.x1), y: Math.min(draft.y0, draft.y1), width: Math.abs(draft.x1 - draft.x0), height: Math.abs(draft.y1 - draft.y0) };
       setDraft(null);
+      // クリックだけ（ドラッグなし）の場合はツールを維持し、右パネルからサイズを選べるようにする
+      if (box.width * zoom < 6 || box.height * zoom < 6) return;
       st.setTool('select');
-      if (box.width * zoom < 6 || box.height * zoom < 6) {
-        st.setDialog('newCanvas');
-        return;
-      }
       const w = Math.round(box.width);
       const h = Math.round(box.height);
       const nb = makeBoard({ pageWidth: w, pageHeight: h, x: Math.round(box.x), y: Math.round(box.y), name: `フレーム ${boards.length + 1}` });
@@ -401,6 +408,13 @@ export function EditorCanvas() {
   const onDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setHoverDevice(null);
+    const preset = e.dataTransfer.getData(PRESET_MIME);
+    if (preset) {
+      const p = pointerFromDom(e);
+      const { id, mockup } = JSON.parse(preset) as { id: string; mockup: boolean };
+      if (p) addPresetFrame(id, p, mockup);
+      return;
+    }
     const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'));
     if (!files.length) return;
     const p = pointerFromDom(e);
@@ -430,7 +444,7 @@ export function EditorCanvas() {
 
   return (
     <div className={cls} ref={wrapRef} onDragOver={onDragOver} onDragLeave={() => setHoverDevice(null)} onDrop={onDrop}>
-      {!boards.length && <div className="canvas-empty">フレームがありません。上部の「フレーム」から追加してください。</div>}
+      {!boards.length && <div className="canvas-empty">ホワイトボードは空です。「フレーム」（F）を選んで、ドラッグで自由サイズ、または右パネルからストア用サイズを配置してください。</div>}
       <Stage
         ref={stageRef}
         width={size.w}
@@ -477,7 +491,7 @@ export function EditorCanvas() {
                     width={W}
                     wrap="none"
                     ellipsis
-                    draggable={!spaceDown}
+                    draggable={!spaceDown && tool !== 'frame'}
                     onMouseDown={(e) => {
                       e.cancelBubble = true;
                       st.selectIn(b.id, []);
