@@ -38,6 +38,8 @@ const P: Record<string, string> = {
   warn: 'M12 4l9 16H3zM12 10v4M12 17h.01',
   info: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 11v6M12 7.5h.01',
   close: 'M6 6l12 12M18 6L6 18',
+  frame: 'M7 3v18M17 3v18M3 7h18M3 17h18',
+  grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
   fit: 'M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5',
 };
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { currentBoard, useStore } from '../store';
 import type { Board, DeviceEl, DeviceModel, El, ImageFormat } from '../types';
-import { presetById, PRESETS_CHECKED_AT } from '../presets';
+import { presetById, PRESETS, PRESETS_CHECKED_AT, STORE_LABEL } from '../presets';
 import { DEVICE_LABEL, FONTS } from '../lib/factory';
 import { pickImageFiles, readFileAsDataURL } from '../lib/image';
 import { Icon } from './Icon';
@@ -94,6 +94,27 @@ function BoardProps({ board }: { board: Board }) {
             <b>{preset.formats.map((f) => f.toUpperCase()).join(' / ')}</b>
           </div>
         )}
+        <div className="grid2">
+          <Num label="W" value={board.pageWidth} min={16} max={8000} onChange={(v) => st.updateBoard({ pageWidth: Math.round(v), presetId: preset && preset.width === Math.round(v) ? preset.id : null })} />
+          <Num label="H" value={board.pageHeight} min={16} max={8000} onChange={(v) => st.updateBoard({ pageHeight: Math.round(v), presetId: preset && preset.height === Math.round(v) ? preset.id : null })} />
+        </div>
+        <label className="field">
+          <span>プリセット</span>
+          <select
+            value={board.presetId ?? ''}
+            onChange={(e) => {
+              const p = PRESETS.find((x) => x.id === e.target.value);
+              if (p) st.updateBoard({ presetId: p.id, pageWidth: p.width, pageHeight: p.height, exportFormat: p.formats[0] });
+            }}
+          >
+            <option value="">カスタム</option>
+            {PRESETS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {STORE_LABEL[p.store]} · {p.device}（{p.width}×{p.height}）
+              </option>
+            ))}
+          </select>
+        </label>
         {preset?.note && <p className="note">{preset.note}</p>}
         <p className="note muted">プリセット確認日: {PRESETS_CHECKED_AT}</p>
         <label className="field">
@@ -260,6 +281,38 @@ function ElementProps({ el }: { el: El }) {
   );
 }
 
+const IPHONE_COLORS: [string, string][] = [
+  ['ブラックチタニウム', '#4b4a4c'],
+  ['ナチュラルチタニウム', '#bdb7ab'],
+  ['ホワイトチタニウム', '#e4e2dd'],
+  ['デザートチタニウム', '#c5a487'],
+  ['ブルー', '#3d4b63'],
+  ['ピンク', '#e8c4c9'],
+];
+
+function ScreenDropZone({ el, onSrc }: { el: DeviceEl; onSrc(src: string): void }) {
+  const [over, setOver] = useState(false);
+  return (
+    <div
+      className={`drop-zone ${over ? 'over' : ''}`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={async (e) => {
+        e.preventDefault();
+        setOver(false);
+        const f = Array.from(e.dataTransfer.files).find((x) => x.type.startsWith('image/'));
+        if (f) onSrc(await readFileAsDataURL(f));
+      }}
+    >
+      {el.screenSrc && <img src={el.screenSrc} alt="" />}
+      画面画像をここにドラッグ＆ドロップ
+    </div>
+  );
+}
+
 function DeviceProps({ el, up }: { el: DeviceEl; up(p: Partial<DeviceEl>, k: string): void }) {
   return (
     <Section title="端末モックアップ">
@@ -273,7 +326,18 @@ function DeviceProps({ el, up }: { el: DeviceEl; up(p: Partial<DeviceEl>, k: str
           ))}
         </select>
       </label>
+      {el.model === 'iphone' && (
+        <div className="swatches">
+          {IPHONE_COLORS.map(([name, c]) => (
+            <button key={c} className={`swatch ${el.frameColor === c ? 'on' : ''}`} style={{ background: c }} title={name} onClick={() => up({ frameColor: c }, 'fc')} />
+          ))}
+        </div>
+      )}
       <Color label="フレーム色" value={el.frameColor} onChange={(v) => up({ frameColor: v }, 'fc')} />
+      <ScreenDropZone el={el} onSrc={(src) => up({ screenSrc: src, screenScale: 1, screenOffsetX: 0, screenOffsetY: 0 }, 'screen')} />
+      <label className="check">
+        <input type="checkbox" checked={!!el.glare} onChange={(e) => up({ glare: e.target.checked }, 'glare')} /> 画面の映り込み
+      </label>
       <Range label="影" value={el.shadow} min={0} max={el.width * 0.25} step={1} onChange={(v) => up({ shadow: v }, 'shadow')} />
       <div className="row gap8">
         <button
@@ -298,7 +362,7 @@ function DeviceProps({ el, up }: { el: DeviceEl; up(p: Partial<DeviceEl>, k: str
           <Range label="画面の位置 Y" value={el.screenOffsetY} min={-1} max={1} step={0.005} onChange={(v) => up({ screenOffsetY: v }, 'sy')} />
         </>
       )}
-      <p className="note">画像ファイルを端末の上にドラッグ＆ドロップしても画面にはめ込めます。</p>
+      <p className="note">画像ファイルや、キャンバス上の画像を端末の上にドラッグ＆ドロップすると画面にはめ込めます。</p>
     </Section>
   );
 }

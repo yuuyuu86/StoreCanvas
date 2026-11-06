@@ -79,6 +79,9 @@ export function PagesPanel() {
           <button className="icon-btn" title="同じサイズのページを追加" onClick={addSameSize}>
             <Icon name="plus" />
           </button>
+          <button className="icon-btn" title="フレームを一列に整列" onClick={() => st.arrangeBoards()}>
+            <Icon name="grid" />
+          </button>
           <button className="icon-btn" title="サイズを選んでページを追加" onClick={() => st.setDialog('newCanvas')}>
             <Icon name="resize" />
           </button>
@@ -105,7 +108,7 @@ export function PagesPanel() {
                 setDragFrom(null);
                 setDropAt(null);
               }}
-              onClick={(e) => st.selectBoard(b.id, e.shiftKey ? 'range' : e.metaKey || e.ctrlKey ? 'toggle' : 'single')}
+              onClick={(e) => (e.shiftKey ? st.selectBoard(b.id, 'range') : e.metaKey || e.ctrlKey ? st.selectBoard(b.id, 'toggle') : st.focusBoard(b.id))}
             >
               <div className="page-thumb" style={{ aspectRatio: `${b.pageWidth * b.pageNames.length} / ${b.pageHeight}` }}>
                 <BoardThumb board={b} maxW={b.pageNames.length > 1 ? 196 : 92} maxH={110} />

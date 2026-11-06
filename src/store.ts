@@ -25,14 +25,28 @@ interface State {
   future: Board[][];
   clipboard: El[];
   zoom: number;
+  pan: { x: number; y: number };
+  viewSize: { w: number; h: number };
+  tool: 'select' | 'frame';
   fitNonce: number;
+  fitMode: 'board' | 'all';
   showGuides: boolean;
 
   load(): Promise<void>;
   setView(v: View): void;
   setDialog(d: Dialog): void;
-  setZoom(z: number): void;
-  requestFit(): void;
+  setZoom(z: number, anchor?: { x: number; y: number }): void;
+  setPan(p: { x: number; y: number }): void;
+  setViewSize(s: { w: number; h: number }): void;
+  setTool(t: 'select' | 'frame'): void;
+  requestFit(mode?: 'board' | 'all'): void;
+  focusBoard(id: string): void;
+  selectIn(boardId: string, ids: string[]): void;
+  moveBoardPos(id: string, x: number, y: number): void;
+  arrangeBoards(): void;
+  moveElementsToBoard(ids: string[], fromId: string, toId: string): void;
+  dropImageIntoDevice(fromBoardId: string, imageId: string, toBoardId: string, deviceId: string): void;
+  setDeviceScreen(boardId: string, deviceId: string, src: string): void;
   toggleGuides(): void;
 
   createProject(name: string): string;
@@ -46,7 +60,7 @@ interface State {
   redo(): void;
 
   selectBoard(id: string, mode?: 'single' | 'toggle' | 'range'): void;
-  addBoards(boards: Board[]): void;
+  addBoards(boards: Board[], opts?: { keepPosition?: boolean }): void;
   duplicateBoard(id: string): void;
   deleteBoards(ids: string[]): void;
   renameBoard(id: string, name: string): void;
@@ -76,6 +90,18 @@ let lastKey: string | undefined;
 let lastTime = 0;
 
 export const currentProject = (s: State) => s.projects.find((p) => p.id === s.projectId) ?? null;
+export const FRAME_GAP = 200;
+export const boardW = (b: Board) => b.pageWidth * b.pageNames.length;
+
+function layoutRow(boards: Board[]) {
+  let x = 0;
+  for (const b of boards) {
+    b.x = x;
+    b.y = 0;
+    x += boardW(b) + FRAME_GAP;
+  }
+}
+
 export const currentBoard = (s: State) => currentProject(s)?.boards.find((b) => b.id === s.boardId) ?? null;
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
@@ -107,21 +133,99 @@ export const useStore = create<State>((set, get) => ({
   future: [],
   clipboard: [],
   zoom: 0.25,
+  pan: { x: 0, y: 0 },
+  viewSize: { w: 800, h: 600 },
+  tool: 'select',
   fitNonce: 0,
+  fitMode: 'board',
   showGuides: true,
 
   async load() {
     try {
       const data = (await idbGet(STORAGE_KEY)) as Project[] | undefined;
-      set({ projects: Array.isArray(data) ? data : [], loaded: true });
+      const projects = Array.isArray(data) ? data : [];
+      for (const p of projects) if (p.boards.some((b) => typeof b.x !== 'number')) layoutRow(p.boards);
+      set({ projects, loaded: true });
     } catch {
       set({ loaded: true });
     }
   },
   setView: (view) => set({ view }),
   setDialog: (dialog) => set({ dialog }),
-  setZoom: (z) => set({ zoom: Math.min(8, Math.max(0.02, z)) }),
-  requestFit: () => set((s) => ({ fitNonce: s.fitNonce + 1 })),
+  setZoom: (z, anchor) =>
+    set((s) => {
+      const zoom = Math.min(8, Math.max(0.02, z));
+      const a = anchor ?? { x: s.viewSize.w / 2, y: s.viewSize.h / 2 };
+      const k = zoom / s.zoom;
+      return { zoom, pan: { x: a.x - (a.x - s.pan.x) * k, y: a.y - (a.y - s.pan.y) * k } };
+    }),
+  setPan: (pan) => set({ pan }),
+  setViewSize: (viewSize) => set({ viewSize }),
+  setTool: (tool) => set({ tool }),
+  requestFit: (mode = 'board') => set((s) => ({ fitNonce: s.fitNonce + 1, fitMode: mode })),
+  focusBoard(id) {
+    set({ boardId: id, selectedBoards: [id], selected: [] });
+    get().requestFit('board');
+  },
+  selectIn(boardId, ids) {
+    const s = get();
+    if (s.boardId !== boardId) set({ boardId, selectedBoards: [boardId], selected: ids });
+    else set({ selected: ids });
+  },
+  moveBoardPos(id, x, y) {
+    get().mutate((d) => {
+      const b = d.boards.find((v) => v.id === id);
+      if (b) {
+        b.x = x;
+        b.y = y;
+      }
+    });
+  },
+  arrangeBoards() {
+    get().mutate((d) => layoutRow(d.boards as Board[]));
+    get().requestFit('all');
+  },
+  moveElementsToBoard(ids, fromId, toId) {
+    get().mutate((d) => {
+      const from = d.boards.find((b) => b.id === fromId);
+      const to = d.boards.find((b) => b.id === toId);
+      if (!from || !to) return;
+      const moving = from.elements.filter((e) => ids.includes(e.id));
+      from.elements = from.elements.filter((e) => !ids.includes(e.id));
+      for (const e of moving) {
+        e.x += from.x - to.x;
+        e.y += from.y - to.y;
+        to.elements.push(e);
+      }
+    });
+    set({ boardId: toId, selectedBoards: [toId], selected: ids });
+  },
+  dropImageIntoDevice(fromBoardId, imageId, toBoardId, deviceId) {
+    get().mutate((d) => {
+      const from = d.boards.find((b) => b.id === fromBoardId);
+      const img = from?.elements.find((e) => e.id === imageId);
+      const dev = d.boards.find((b) => b.id === toBoardId)?.elements.find((e) => e.id === deviceId);
+      if (!from || !img || img.type !== 'image' || !dev || dev.type !== 'device') return;
+      dev.screenSrc = img.src;
+      dev.screenScale = 1;
+      dev.screenOffsetX = 0;
+      dev.screenOffsetY = 0;
+      from.elements = from.elements.filter((e) => e.id !== imageId);
+    });
+    set({ boardId: toBoardId, selectedBoards: [toBoardId], selected: [deviceId] });
+  },
+  setDeviceScreen(boardId, deviceId, src) {
+    get().mutate((d) => {
+      const dev = d.boards.find((b) => b.id === boardId)?.elements.find((e) => e.id === deviceId);
+      if (dev && dev.type === 'device') {
+        dev.screenSrc = src;
+        dev.screenScale = 1;
+        dev.screenOffsetX = 0;
+        dev.screenOffsetY = 0;
+      }
+    });
+    set({ boardId, selectedBoards: [boardId], selected: [deviceId] });
+  },
   toggleGuides: () => set((s) => ({ showGuides: !s.showGuides })),
 
   createProject(name) {
@@ -214,13 +318,23 @@ export const useStore = create<State>((set, get) => ({
       set({ selectedBoards: [id], boardId: id, selected: [] });
     }
   },
-  addBoards(boards) {
+  addBoards(boards, opts) {
     const s = get();
     const p = currentProject(s);
     if (!p || !boards.length) return;
     const idx = p.boards.findIndex((b) => b.id === s.boardId);
+    const placed = clone(boards);
+    if (!opts?.keepPosition) {
+      let x = p.boards.length ? Math.max(...p.boards.map((b) => b.x + boardW(b))) + FRAME_GAP : 0;
+      const y = p.boards.find((b) => b.id === s.boardId)?.y ?? 0;
+      for (const b of placed) {
+        b.x = x;
+        b.y = y;
+        x += boardW(b) + FRAME_GAP;
+      }
+    }
     get().mutate((d) => {
-      d.boards.splice(idx < 0 ? d.boards.length : idx + 1, 0, ...clone(boards));
+      d.boards.splice(idx < 0 ? d.boards.length : idx + 1, 0, ...placed);
     });
     set({ boardId: boards[0].id, selectedBoards: boards.map((b) => b.id), selected: [] });
   },
@@ -286,10 +400,12 @@ export const useStore = create<State>((set, get) => ({
     const parts: Board[] = b.pageNames.map((name, i) => {
       const page = { x: i * w, y: 0, width: w, height: b.pageHeight };
       const els = b.elements.filter((el) => intersects(elementBounds(el), page)).map((el) => ({ ...clone(el), x: el.x - i * w }));
-      return { ...clone(b), id: uid(), name, pageNames: [name], elements: remapIds(els) };
+      return { ...clone(b), id: uid(), name, pageNames: [name], elements: remapIds(els), x: b.x + i * (w + FRAME_GAP), y: b.y };
     });
     const idx = p.boards.findIndex((x) => x.id === id);
+    const shift = (b.pageNames.length - 1) * FRAME_GAP;
     get().mutate((d) => {
+      for (const o of d.boards) if (o.id !== id && o.x > b.x) o.x += shift;
       d.boards.splice(idx, 1, ...(parts as Draft<Board>[]));
     });
     set({ boardId: parts[0].id, selectedBoards: parts.map((x) => x.id), selected: [] });

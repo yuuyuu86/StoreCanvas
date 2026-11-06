@@ -77,6 +77,7 @@ function Toolbar() {
   const linked = useStore((s) => (currentBoard(s)?.pageNames.length ?? 1) > 1);
   const st = useStore.getState();
   const [deviceMenu, setDeviceMenu] = useState(false);
+  const tool = useStore((x) => x.tool);
   const [editingName, setEditingName] = useState(false);
   return (
     <header className="topbar">
@@ -102,6 +103,10 @@ function Toolbar() {
       )}
       <SaveIndicator />
       <div className="tool-group">
+        <button className={`tool ${tool === 'frame' ? 'on' : ''}`} title="フレーム (F)：キャンバス上をドラッグして作成、クリックでサイズを選択" onClick={() => st.setTool(tool === 'frame' ? 'select' : 'frame')}>
+          <Icon name="frame" />
+          <span>フレーム</span>
+        </button>
         <button className="tool" title="テキスト (T)" onClick={tools.text}>
           <Icon name="text" />
           <span>テキスト</span>
@@ -161,7 +166,7 @@ function Toolbar() {
         <button className="icon-btn" onClick={() => st.setZoom(zoom / 1.25)} title="縮小 (⌘-)">
           −
         </button>
-        <button className="zoom-val" onClick={st.requestFit} title="全体を表示 (⇧1)">
+        <button className="zoom-val" onClick={() => st.requestFit('all')} title="すべてのフレームを表示 (⇧1) / 選択中のフレーム (⇧2)">
           {Math.round(zoom * 100)}%
         </button>
         <button className="icon-btn" onClick={() => st.setZoom(zoom * 1.25)} title="拡大 (⌘+)">
@@ -202,9 +207,13 @@ function useShortcuts() {
       if (mod && k === '-') return run(() => s.setZoom(s.zoom / 1.25));
       if (mod && k === ']') return run(() => s.reorder(e.shiftKey ? 'front' : 'forward'));
       if (mod && k === '[') return run(() => s.reorder(e.shiftKey ? 'back' : 'backward'));
-      if (e.shiftKey && (e.code === 'Digit1' || k === '!')) return run(s.requestFit);
+      if (e.shiftKey && e.code === 'Digit1') return run(() => s.requestFit('all'));
+      if (e.shiftKey && e.code === 'Digit2') return run(() => s.requestFit('board'));
       if (k === 'delete' || k === 'backspace') return run(s.deleteSelected);
-      if (k === 'escape') return run(() => s.setSelected([]));
+      if (k === 'escape') return run(() => {
+        s.setTool('select');
+        s.setSelected([]);
+      });
       if (k.startsWith('arrow') && s.selected.length) {
         const d = e.shiftKey ? 10 : 1;
         const dx = k === 'arrowleft' ? -d : k === 'arrowright' ? d : 0;
@@ -222,6 +231,8 @@ function useShortcuts() {
         );
       }
       if (mod) return;
+      if (k === 'f' || k === 'a') return run(() => s.setTool('frame'));
+      if (k === 'v') return run(() => s.setTool('select'));
       if (k === 't') return run(tools.text);
       if (k === 'r') return run(tools.rect);
       if (k === 'o') return run(tools.ellipse);

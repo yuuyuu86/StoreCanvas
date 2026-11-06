@@ -62,7 +62,7 @@ function headlineLayout(
     y: landscape ? ph * 0.1 : ph * 0.29,
     width: dw,
     rotation: o.tilt ?? 0,
-    frameColor: o.frame ?? '#1c1c1e',
+    ...(o.frame ? { frameColor: o.frame } : {}),
   });
   return [title, sub, device];
 }
@@ -120,7 +120,7 @@ export const TEMPLATES: Template[] = [
     build: (pw, ph) => ({
       background: solid('#e7f1eb'),
       pageNames: ['1'],
-      elements: headlineLayout(pw, ph, { title: '毎日のタスクを\nすっきり整理', sub: 'チームの予定もひと目で把握', color: '#173d2b', subColor: '#4b6b5a', frame: '#f2f2f2' }),
+      elements: headlineLayout(pw, ph, { title: '毎日のタスクを\nすっきり整理', sub: 'チームの予定もひと目で把握', color: '#173d2b', subColor: '#4b6b5a', frame: '#e4e2dd' }),
     }),
   },
   {
@@ -147,7 +147,7 @@ export const TEMPLATES: Template[] = [
     build: (pw, ph) => ({
       background: solid('#0d0d0d'),
       pageNames: ['1'],
-      elements: headlineLayout(pw, ph, { title: '思い出を、\n美しく。', sub: 'プロ品質のフィルターと編集機能', color: '#ffffff', subColor: '#9a9a9a', style: 'normal', frame: '#2b2b2b' }),
+      elements: headlineLayout(pw, ph, { title: '思い出を、\n美しく。', sub: 'プロ品質のフィルターと編集機能', color: '#ffffff', subColor: '#9a9a9a', style: 'normal', frame: '#3a3a3c' }),
     }),
   },
   {

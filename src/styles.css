@@ -282,3 +282,12 @@ button:disabled { cursor: default; opacity: 0.4; }
 }
 
 .topbar .title { display: flex; align-items: baseline; gap: 10px; }
+.tool.on { background: var(--accent-weak); color: var(--accent); }
+.drop-zone { border: 1.5px dashed var(--line-strong); border-radius: 8px; padding: 14px; text-align: center; color: var(--muted); font-size: 12px; transition: all .12s; }
+.drop-zone.over { border-color: var(--accent); background: var(--accent-weak); color: var(--accent); }
+.drop-zone img { max-width: 100%; max-height: 120px; border-radius: 6px; display: block; margin: 0 auto 6px; }
+.swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+.swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line-strong); padding: 0; }
+.swatch.on { box-shadow: 0 0 0 2px var(--accent); }
+.canvas-wrap.pan { cursor: grab; }
+.canvas-wrap.frame-tool { cursor: crosshair; }

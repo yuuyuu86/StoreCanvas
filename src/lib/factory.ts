@@ -6,7 +6,7 @@ export const uid = () => nanoid(10);
 const base = { rotation: 0, opacity: 1, visible: true, locked: false, groupId: null };
 
 export const DEVICE_ASPECT: Record<DeviceModel, number> = {
-  iphone: 0.48,
+  iphone: 0.484,
   android: 0.468,
   ipad: 0.77,
   tablet: 0.647,
@@ -65,12 +65,13 @@ export function makeDevice(p: Req<DeviceEl, 'x' | 'y' | 'width' | 'model'>): Dev
     name: DEVICE_LABEL[p.model],
     type: 'device',
     height: p.width / DEVICE_ASPECT[p.model],
-    frameColor: '#1c1c1e',
+    frameColor: p.model === 'iphone' ? '#4b4a4c' : '#1c1c1e',
     screenSrc: null,
     screenScale: 1,
     screenOffsetX: 0,
     screenOffsetY: 0,
     shadow: p.width * 0.06,
+    glare: true,
     ...p,
   };
 }
@@ -86,6 +87,8 @@ export function makeBoard(p: Req<Board, 'pageWidth' | 'pageHeight'>): Board {
     elements: [],
     presetId: null,
     exportFormat: 'png',
+    x: 0,
+    y: 0,
     ...p,
   };
 }

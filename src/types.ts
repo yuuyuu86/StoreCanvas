@@ -58,6 +58,7 @@ export interface DeviceEl extends BaseEl {
   screenOffsetX: number;
   screenOffsetY: number;
   shadow: number;
+  glare?: boolean;
 }
 
 export type El = TextEl | ImageEl | ShapeEl | DeviceEl;
@@ -76,6 +77,9 @@ export interface Board {
   elements: El[];
   presetId: string | null;
   exportFormat: ImageFormat;
+  /** 編集キャンバス上の位置（Figmaのフレーム配置） */
+  x: number;
+  y: number;
 }
 
 export interface Project {

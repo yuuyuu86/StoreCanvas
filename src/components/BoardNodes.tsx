@@ -43,7 +43,7 @@ export function BoardBackground({ board }: { board: Board }) {
 
 export function deviceGeometry(model: DeviceModel, w: number, h: number) {
   const spec = {
-    iphone: { b: 0.04, r: 0.17 },
+    iphone: { b: 0.048, r: 0.19 },
     android: { b: 0.035, r: 0.11 },
     ipad: { b: 0.05, r: 0.07 },
     tablet: { b: 0.045, r: 0.06 },
@@ -57,12 +57,122 @@ export function deviceGeometry(model: DeviceModel, w: number, h: number) {
     sw: w - b * 2,
     sh: h - b * 2,
     sr: Math.max(0, r - b),
-    island: model === 'iphone' ? { w: w * 0.28, h: w * 0.08, x: (w - w * 0.28) / 2, y: b + w * 0.035 } : null,
+    island: model === 'iphone' ? { w: w * 0.29, h: w * 0.085, x: (w - w * 0.29) / 2, y: b + w * 0.032 } : null,
     hole: model === 'android' ? { x: w / 2, y: b + w * 0.05, r: w * 0.025 } : model === 'ipad' || model === 'tablet' ? { x: w / 2, y: b / 2, r: w * 0.008 } : null,
   };
 }
 
+
+/** 端末要素ローカル座標での画面矩形 */
+export function deviceScreenRect(el: DeviceEl) {
+  const g = deviceGeometry(el.model, el.width, el.height);
+  return { x: g.sx, y: g.sy, width: g.sw, height: g.sh, r: g.sr };
+}
+
+function shade(hex: string, amt: number) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => Math.round(amt >= 0 ? c + (255 - c) * amt : c * (1 + amt)));
+  return `rgb(${ch.join(',')})`;
+}
+
+function ScreenContent({ el, g, img }: { el: DeviceEl; g: ReturnType<typeof deviceGeometry>; img?: HTMLImageElement }) {
+  const w = el.width;
+  let imgBox: { x: number; y: number; width: number; height: number } | null = null;
+  if (img) {
+    const s = Math.max(g.sw / img.width, g.sh / img.height) * el.screenScale;
+    const iw = img.width * s;
+    const ih = img.height * s;
+    imgBox = { x: g.sx + (g.sw - iw) / 2 + el.screenOffsetX * g.sw, y: g.sy + (g.sh - ih) / 2 + el.screenOffsetY * g.sh, width: iw, height: ih };
+  }
+  return (
+    <Group clipFunc={(ctx) => roundRectPath(ctx, g.sx, g.sy, g.sw, g.sh, g.sr)}>
+      <Rect x={g.sx} y={g.sy} width={g.sw} height={g.sh} fill="#0e0e10" />
+      {img && imgBox && <KImage image={img} {...imgBox} />}
+      {!img && (
+        <Text x={g.sx} y={g.sy + g.sh / 2 - w * 0.03} width={g.sw} align="center" text="画面画像をドロップ" fontSize={w * 0.05} fill="#6b6b70" fontFamily="Noto Sans JP" />
+      )}
+      {el.glare && (
+        <Rect
+          x={g.sx}
+          y={g.sy}
+          width={g.sw}
+          height={g.sh}
+          fillLinearGradientStartPoint={{ x: g.sx, y: g.sy }}
+          fillLinearGradientEndPoint={{ x: g.sx + g.sw * 0.9, y: g.sy + g.sh * 0.55 }}
+          fillLinearGradientColorStops={[0, 'rgba(255,255,255,0.16)', 0.45, 'rgba(255,255,255,0.05)', 0.451, 'rgba(255,255,255,0)', 1, 'rgba(255,255,255,0)']}
+          listening={false}
+        />
+      )}
+    </Group>
+  );
+}
+
+/** 実機に近い iPhone（チタンフレーム・サイドボタン・Dynamic Island） */
+function IPhoneNode({ el, groupProps }: { el: DeviceEl; groupProps: Konva.GroupConfig }) {
+  const img = useImageSrc(el.screenSrc);
+  const { width: w, height: h } = el;
+  const g = deviceGeometry('iphone', w, h);
+  const c = el.frameColor;
+  const metal = {
+    fillLinearGradientStartPoint: { x: 0, y: 0 },
+    fillLinearGradientEndPoint: { x: w, y: 0 },
+    fillLinearGradientColorStops: [0, shade(c, -0.35), 0.012, shade(c, 0.45), 0.035, shade(c, 0.05), 0.5, c, 0.965, shade(c, 0.05), 0.988, shade(c, 0.45), 1, shade(c, -0.35)],
+  };
+  const btnW = w * 0.016;
+  const btn = (x: number, y: number, bh: number, key: string) => (
+    <Rect key={key} x={x} y={y} width={btnW} height={bh} cornerRadius={btnW * 0.45} fill={shade(c, 0.12)} stroke={shade(c, -0.3)} strokeWidth={w * 0.002} />
+  );
+  const band = w * 0.018; // 金属フレームの幅
+  const ant = shade(c, -0.25);
+  const isl = g.island!;
+  return (
+    <Group {...groupProps}>
+      {/* サイドボタン（本体の後ろ） */}
+      {btn(-btnW * 0.6, h * 0.155, h * 0.036, 'action')}
+      {btn(-btnW * 0.6, h * 0.215, h * 0.062, 'volup')}
+      {btn(-btnW * 0.6, h * 0.292, h * 0.062, 'voldown')}
+      {btn(w - btnW * 0.4, h * 0.235, h * 0.1, 'power')}
+      {btn(w - btnW * 0.4, h * 0.6, h * 0.075, 'camera')}
+      {/* 本体 */}
+      <Rect
+        width={w}
+        height={h}
+        cornerRadius={g.r}
+        {...metal}
+        shadowEnabled={el.shadow > 0}
+        shadowColor="#000"
+        shadowBlur={el.shadow}
+        shadowOpacity={0.4}
+        shadowOffsetY={el.shadow * 0.35}
+      />
+      {/* アンテナライン */}
+      {[0.09, 0.91].map((ty) => (
+        <Group key={ty}>
+          <Rect x={0} y={h * ty} width={band} height={w * 0.012} fill={ant} />
+          <Rect x={w - band} y={h * ty} width={band} height={w * 0.012} fill={ant} />
+        </Group>
+      ))}
+      <Rect x={w * 0.24} y={h - band} width={w * 0.012} height={band} fill={ant} />
+      <Rect x={w * 0.75} y={0} width={w * 0.012} height={band} fill={ant} />
+      {/* 黒いベゼル */}
+      <Rect x={band} y={band} width={w - band * 2} height={h - band * 2} cornerRadius={g.r - band} fill="#050506" />
+      <Rect width={w} height={h} cornerRadius={g.r} stroke="rgba(255,255,255,0.28)" strokeWidth={w * 0.003} />
+      <ScreenContent el={el} g={g} img={img} />
+      {/* Dynamic Island */}
+      <Rect x={isl.x} y={isl.y} width={isl.w} height={isl.h} cornerRadius={isl.h / 2} fill="#000" />
+      <Circle x={isl.x + isl.w - isl.h * 0.55} y={isl.y + isl.h / 2} radius={isl.h * 0.24} fill="#0d1020" stroke="#1d2235" strokeWidth={isl.h * 0.05} />
+      <Circle x={isl.x + isl.w - isl.h * 0.6} y={isl.y + isl.h * 0.42} radius={isl.h * 0.06} fill="rgba(120,150,255,0.45)" />
+    </Group>
+  );
+}
+
 function DeviceNode({ el, groupProps }: { el: DeviceEl; groupProps: Konva.GroupConfig }) {
+  return el.model === 'iphone' ? <IPhoneNode el={el} groupProps={groupProps} /> : <GenericDeviceNode el={el} groupProps={groupProps} />;
+}
+
+function GenericDeviceNode({ el, groupProps }: { el: DeviceEl; groupProps: Konva.GroupConfig }) {
   const img = useImageSrc(el.screenSrc);
   const { width: w, height: h } = el;
   const g = deviceGeometry(el.model, w, h);
