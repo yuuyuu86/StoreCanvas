@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
-import { ASSET_LABELS, ORIENTATION_LABELS, PRESETS, PRESETS_CHECKED_AT, STORES, type Orientation } from '../presets';
+import { ASSET_LABELS, ASSET_ORDER, ORIENTATION_LABELS, PRESETS, PRESETS_CHECKED_AT, STORES, type Orientation } from '../presets';
 import type { AssetKind, StoreId } from '../types';
 import { makeBoard, makeDevice } from '../lib/factory';
 import { Icon } from './Icon';
@@ -18,7 +18,7 @@ export function NewCanvasDialog() {
   const [custom, setCustom] = useState({ w: 1080, h: 1080 });
 
   const assets = useMemo(() => {
-    const kinds = [...new Set(PRESETS.filter((p) => p.store === store).map((p) => p.asset))];
+    const kinds = ASSET_ORDER.filter((k) => PRESETS.some((p) => p.store === store && p.asset === k));
     return store === 'other' ? [...kinds, 'custom' as AssetKind] : kinds;
   }, [store]);
   const effAsset = assets.includes(asset) ? asset : assets[0];
@@ -114,7 +114,7 @@ export function NewCanvasDialog() {
               </Step>
             ) : (
               <>
-                <Step n={3} title="端末・サイズ">
+                <Step n={3} title="画像の種類・サイズ">
                   <div className="device-list">
                     {devices.map((d) => {
                       const p = PRESETS.find((x) => x.store === store && x.asset === effAsset && x.device === d)!;

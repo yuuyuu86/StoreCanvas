@@ -1,5 +1,5 @@
 export type StoreId = 'appstore' | 'googleplay' | 'other';
-export type AssetKind = 'screenshot' | 'icon' | 'feature' | 'banner' | 'custom';
+export type AssetKind = 'screenshot' | 'icon' | 'feature' | 'header' | 'banner' | 'custom';
 export type DeviceModel = 'iphone' | 'android' | 'ipad' | 'tablet';
 export type ImageFormat = 'png' | 'jpeg';
 

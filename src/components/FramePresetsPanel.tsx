@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import { ASSET_LABELS, ORIENTATION_LABELS, PRESETS, STORES, presetById, type Preset } from '../presets';
+import { ASSET_LABELS, ASSET_ORDER, ORIENTATION_LABELS, PRESETS, STORES, presetById, type Preset } from '../presets';
 import { makeBoard, makeDevice } from '../lib/factory';
 import type { StoreId } from '../types';
 
@@ -38,10 +38,11 @@ export function FramePresetsPanel() {
   const [store, setStore] = useState<StoreId>('appstore');
   const [mockup, setMockup] = useState(true);
   const groups = new Map<string, Preset[]>();
-  for (const p of PRESETS.filter((x) => x.store === store)) {
-    const k = ASSET_LABELS[p.asset];
-    groups.set(k, [...(groups.get(k) ?? []), p]);
-  }
+  for (const kind of ASSET_ORDER)
+    for (const p of PRESETS.filter((x) => x.store === store && x.asset === kind)) {
+      const k = ASSET_LABELS[p.asset];
+      groups.set(k, [...(groups.get(k) ?? []), p]);
+    }
   return (
     <aside className="right panel">
       <div className="prop-section">
