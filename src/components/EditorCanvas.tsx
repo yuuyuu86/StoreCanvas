@@ -6,9 +6,10 @@ import { boardW, currentProject, useStore } from '../store';
 import type { Board, El } from '../types';
 import { BoardNodes, deviceScreenRect, type NodeHandlers } from './BoardNodes';
 import { elementBounds, intersects, type Box } from '../lib/geometry';
-import { readFileAsDataURL, loadImage } from '../lib/image';
-import { makeBoard, makeImage } from '../lib/factory';
+import { importImageFile } from '../lib/image';
+import { makeBoard, makeImage, uid } from '../lib/factory';
 import { addPresetFrame, PRESET_MIME } from './FramePresetsPanel';
+import { presetById } from '../presets';
 
 const ACCENT = '#1f5c3f';
 const FIT_PAD = 80;
@@ -282,17 +283,22 @@ export function EditorCanvas() {
           st.dropImageIntoDevice(board.id, el.id, hit.boardId, hit.id);
           return;
         }
-        st.updateElements(ids, (d) => {
-          const q = pos.get(d.id);
-          if (q) {
-            d.x = q.x;
-            d.y = q.y;
-          }
-        });
+        const hk = `drag-${uid()}`; // 位置更新とフレーム移動を1回の「元に戻す」にまとめる
+        st.updateElements(
+          ids,
+          (d) => {
+            const q = pos.get(d.id);
+            if (q) {
+              d.x = q.x;
+              d.y = q.y;
+            }
+          },
+          hk,
+        );
         // 別のフレームへ移動（ドロップ位置のフレームに所属させる）
         if (p) {
           const target = boardAt(allBoards, p);
-          if (target && target.id !== board.id) st.moveElementsToBoard(ids, board.id, target.id);
+          if (target && target.id !== board.id) st.moveElementsToBoard(ids, board.id, target.id, hk);
         }
       },
       onTransformEnd(e, el) {
@@ -410,9 +416,16 @@ export function EditorCanvas() {
     setHoverDevice(null);
     const preset = e.dataTransfer.getData(PRESET_MIME);
     if (preset) {
+      // 外部からドラッグされたデータの可能性もあるため、検証してから使う
       const p = pointerFromDom(e);
-      const { id, mockup } = JSON.parse(preset) as { id: string; mockup: boolean };
-      if (p) addPresetFrame(id, p, mockup);
+      try {
+        const data = JSON.parse(preset) as unknown;
+        if (p && data && typeof data === 'object' && typeof (data as { id?: unknown }).id === 'string' && presetById((data as { id: string }).id)) {
+          addPresetFrame((data as { id: string }).id, p, (data as { mockup?: unknown }).mockup !== false);
+        }
+      } catch {
+        /* 不正なデータは無視 */
+      }
       return;
     }
     const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'));
@@ -421,7 +434,8 @@ export function EditorCanvas() {
     if (!p) return;
     const hit = deviceAt(boards, p);
     if (hit) {
-      st.setDeviceScreen(hit.boardId, hit.id, await readFileAsDataURL(files[0]));
+      const r = await importImageFile(files[0]);
+      if (r) st.setDeviceScreen(hit.boardId, hit.id, r.src);
       return;
     }
     const target = boardAt(boards, p) ?? curBoard;
@@ -429,16 +443,27 @@ export function EditorCanvas() {
     const local = contains(boardBox(target), p) ? { x: p.x - target.x, y: p.y - target.y } : { x: boardW(target) / 2, y: target.pageHeight / 2 };
     const els = [];
     for (const [i, f] of files.entries()) {
-      const src = await readFileAsDataURL(f);
-      const img = await loadImage(src);
+      const r = await importImageFile(f);
+      if (!r) continue;
+      const { src, img } = r;
       const s = Math.min(1, (target.pageWidth * 0.6) / img.width, (target.pageHeight * 0.6) / img.height);
       const w = img.width * s;
       const h = img.height * s;
       els.push(makeImage({ src, x: local.x - w / 2 + i * 40, y: local.y - h / 2 + i * 40, width: w, height: h, name: f.name.replace(/\.[^.]+$/, '') }));
     }
+    if (!els.length) return;
     st.selectIn(target.id, []);
     st.addElements(els);
   };
+
+  // キャンバス外でマウスを離しても範囲選択・パン・フレーム作成を確実に終了させる
+  const upRef = useRef(onStageUp);
+  upRef.current = onStageUp;
+  useEffect(() => {
+    const up = () => upRef.current();
+    window.addEventListener('mouseup', up);
+    return () => window.removeEventListener('mouseup', up);
+  }, []);
 
   const cls = `canvas-wrap ${spaceDown ? 'pan' : ''} ${tool === 'frame' ? 'frame-tool' : ''}`;
 
@@ -453,7 +478,6 @@ export function EditorCanvas() {
         onTouchStart={onStageDown}
         onMouseMove={onStageMove}
         onTouchMove={onStageMove}
-        onMouseUp={onStageUp}
         onTouchEnd={onStageUp}
       >
         <Layer>

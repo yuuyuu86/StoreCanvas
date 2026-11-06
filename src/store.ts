@@ -3,6 +3,8 @@ import { produce, type Draft } from 'immer';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import type { Board, El, Project } from './types';
 import { uid } from './lib/factory';
+import { sanitizeProjects } from './lib/sanitize';
+import { FRAME_GAP_DEFAULT } from './lib/constants';
 import { elementBounds, intersects, unionBox } from './lib/geometry';
 
 const STORAGE_KEY = 'storecanvas:projects:v1';
@@ -44,7 +46,7 @@ interface State {
   selectIn(boardId: string, ids: string[]): void;
   moveBoardPos(id: string, x: number, y: number): void;
   arrangeBoards(): void;
-  moveElementsToBoard(ids: string[], fromId: string, toId: string): void;
+  moveElementsToBoard(ids: string[], fromId: string, toId: string, historyKey?: string): void;
   dropImageIntoDevice(fromBoardId: string, imageId: string, toBoardId: string, deviceId: string): void;
   setDeviceScreen(boardId: string, deviceId: string, src: string): void;
   toggleGuides(): void;
@@ -90,7 +92,7 @@ let lastKey: string | undefined;
 let lastTime = 0;
 
 export const currentProject = (s: State) => s.projects.find((p) => p.id === s.projectId) ?? null;
-export const FRAME_GAP = 200;
+export const FRAME_GAP = FRAME_GAP_DEFAULT;
 export const boardW = (b: Board) => b.pageWidth * b.pageNames.length;
 
 function layoutRow(boards: Board[]) {
@@ -143,8 +145,7 @@ export const useStore = create<State>((set, get) => ({
   async load() {
     try {
       const data = (await idbGet(STORAGE_KEY)) as Project[] | undefined;
-      const projects = Array.isArray(data) ? data : [];
-      for (const p of projects) if (p.boards.some((b) => typeof b.x !== 'number')) layoutRow(p.boards);
+      const projects = sanitizeProjects(data);
       set({ projects, loaded: true });
     } catch {
       set({ loaded: true });
@@ -185,7 +186,7 @@ export const useStore = create<State>((set, get) => ({
     get().mutate((d) => layoutRow(d.boards as Board[]));
     get().requestFit('all');
   },
-  moveElementsToBoard(ids, fromId, toId) {
+  moveElementsToBoard(ids, fromId, toId, historyKey) {
     get().mutate((d) => {
       const from = d.boards.find((b) => b.id === fromId);
       const to = d.boards.find((b) => b.id === toId);
@@ -197,7 +198,7 @@ export const useStore = create<State>((set, get) => ({
         e.y += from.y - to.y;
         to.elements.push(e);
       }
-    });
+    }, historyKey);
     set({ boardId: toId, selectedBoards: [toId], selected: ids });
   },
   dropImageIntoDevice(fromBoardId, imageId, toBoardId, deviceId) {
@@ -615,13 +616,31 @@ export function startAutosave() {
     if (!s.loaded || s.projects === prev.projects) return;
     if (s.saveState !== 'saving') useStore.setState({ saveState: 'saving' });
     clearTimeout(timer);
-    timer = setTimeout(async () => {
-      try {
-        await idbSet(STORAGE_KEY, useStore.getState().projects);
-        useStore.setState({ saveState: 'saved' });
-      } catch {
-        useStore.setState({ saveState: 'error' });
-      }
-    }, 600);
+    timer = setTimeout(flush, 600);
+  });
+  const flush = async () => {
+    clearTimeout(timer);
+    try {
+      await idbSet(STORAGE_KEY, useStore.getState().projects);
+      useStore.setState({ saveState: 'saved' });
+    } catch (e) {
+      console.error('[StoreCanvas] 保存に失敗しました', e);
+      useStore.setState({ saveState: 'error' });
+    }
+  };
+  // タブを閉じる・非表示になるときは未保存分をすぐ書き込む
+  window.addEventListener('pagehide', () => {
+    if (useStore.getState().saveState === 'saving') void flush();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && useStore.getState().saveState === 'saving') void flush();
+  });
+  window.addEventListener('beforeunload', (e) => {
+    const st = useStore.getState().saveState;
+    if (st === 'saving' || st === 'error') {
+      void flush();
+      e.preventDefault();
+      e.returnValue = '';
+    }
   });
 }

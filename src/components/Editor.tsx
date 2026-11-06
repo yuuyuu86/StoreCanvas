@@ -5,7 +5,7 @@ import { LayersPanel, PagesPanel } from './Panels';
 import { PropertiesPanel } from './PropertiesPanel';
 import { Icon } from './Icon';
 import { DEVICE_LABEL, uid, makeDevice, makeImage, makeShape, makeText } from '../lib/factory';
-import { loadImage, pickImageFiles, readFileAsDataURL } from '../lib/image';
+import { importImageFile, pickImageFiles } from '../lib/image';
 import type { DeviceModel, El } from '../types';
 import { presetById } from '../presets';
 
@@ -19,12 +19,13 @@ async function addImages(files: File[]) {
   if (!ip) return;
   const els: El[] = [];
   for (const [i, f] of files.entries()) {
-    const src = await readFileAsDataURL(f);
-    const img = await loadImage(src);
+    const loaded = await importImageFile(f);
+    if (!loaded) continue;
+    const { src, img } = loaded;
     const s = Math.min(1, (ip.pw * 0.6) / img.width, (ip.ph * 0.6) / img.height);
     els.push(makeImage({ src, width: img.width * s, height: img.height * s, x: (ip.pw - img.width * s) / 2 + i * 40, y: (ip.ph - img.height * s) / 2 + i * 40, name: f.name.replace(/\.[^.]+$/, '') }));
   }
-  useStore.getState().addElements(els);
+  if (els.length) useStore.getState().addElements(els);
 }
 
 const tools = {
@@ -266,6 +267,7 @@ function useShortcuts() {
       const t = e.target as HTMLElement;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
       const files = Array.from(e.clipboardData?.files ?? []).filter((f) => f.type.startsWith('image/'));
+      if (!currentBoard(useStore.getState())) return;
       if (files.length) {
         e.preventDefault();
         addImages(files);

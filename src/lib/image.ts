@@ -53,9 +53,45 @@ export function pickImageFiles(multiple = true): Promise<File[]> {
   return new Promise((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = 'image/*';
+    input.accept = 'image/png,image/jpeg,image/webp,image/gif,image/avif,image/bmp';
     input.multiple = multiple;
     input.onchange = () => resolve(Array.from(input.files ?? []));
     input.click();
   });
+}
+
+/** 受け付ける画像形式（SVG はスクリプトや外部参照を含み得るため、またキャンバスを汚染し得るため除外） */
+export const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif', 'image/bmp'];
+export const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
+export const MAX_IMAGE_SIDE = 8192;
+
+export const isAllowedImage = (f: File) => ALLOWED_IMAGE_TYPES.includes(f.type);
+
+/**
+ * 画像ファイルを検証して読み込む。形式・サイズ・デコード失敗をチェックし、
+ * 問題があればユーザーに知らせて null を返す。
+ */
+export async function importImageFile(file: File): Promise<{ src: string; img: HTMLImageElement } | null> {
+  if (!isAllowedImage(file)) {
+    alert(`「${file.name}」は対応していない形式です。PNG / JPEG / WebP / GIF / AVIF / BMP を使用してください。`);
+    return null;
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    alert(`「${file.name}」は大きすぎます（上限 ${MAX_IMAGE_BYTES / 1024 / 1024}MB）。`);
+    return null;
+  }
+  try {
+    const src = await readFileAsDataURL(file);
+    if (!src.startsWith('data:image/')) throw new Error('not an image');
+    const img = await loadImage(src);
+    if (!img.width || !img.height) throw new Error('empty image');
+    if (img.width > MAX_IMAGE_SIDE || img.height > MAX_IMAGE_SIDE) {
+      alert(`「${file.name}」の解像度が大きすぎます（上限 ${MAX_IMAGE_SIDE}px）。`);
+      return null;
+    }
+    return { src, img };
+  } catch {
+    alert(`「${file.name}」を画像として読み込めませんでした。`);
+    return null;
+  }
 }

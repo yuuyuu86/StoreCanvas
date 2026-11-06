@@ -3,7 +3,7 @@ import { currentBoard, useStore } from '../store';
 import type { Board, DeviceEl, DeviceModel, El, ImageFormat } from '../types';
 import { presetById, PRESETS, PRESETS_CHECKED_AT, STORE_LABEL } from '../presets';
 import { DEVICE_LABEL, FONTS } from '../lib/factory';
-import { pickImageFiles, readFileAsDataURL } from '../lib/image';
+import { importImageFile, pickImageFiles } from '../lib/image';
 import { Icon } from './Icon';
 import { FramePresetsPanel } from './FramePresetsPanel';
 
@@ -269,7 +269,8 @@ function ElementProps({ el }: { el: El }) {
             className="btn sm"
             onClick={async () => {
               const [f] = await pickImageFiles(false);
-              if (f) up({ src: await readFileAsDataURL(f) }, 'src');
+              const r = f && (await importImageFile(f));
+              if (r) up({ src: r.src }, 'src');
             }}
           >
             <Icon name="image" /> 画像を差し替え
@@ -305,7 +306,8 @@ function ScreenDropZone({ el, onSrc }: { el: DeviceEl; onSrc(src: string): void 
         e.preventDefault();
         setOver(false);
         const f = Array.from(e.dataTransfer.files).find((x) => x.type.startsWith('image/'));
-        if (f) onSrc(await readFileAsDataURL(f));
+        const r = f && (await importImageFile(f));
+        if (r) onSrc(r.src);
       }}
     >
       {el.screenSrc && <img src={el.screenSrc} alt="" />}
@@ -345,7 +347,8 @@ function DeviceProps({ el, up }: { el: DeviceEl; up(p: Partial<DeviceEl>, k: str
           className="btn sm"
           onClick={async () => {
             const [f] = await pickImageFiles(false);
-            if (f) up({ screenSrc: await readFileAsDataURL(f), screenScale: 1, screenOffsetX: 0, screenOffsetY: 0 }, 'screen');
+            const r = f && (await importImageFile(f));
+            if (r) up({ screenSrc: r.src, screenScale: 1, screenOffsetX: 0, screenOffsetY: 0 }, 'screen');
           }}
         >
           <Icon name="image" /> {el.screenSrc ? '画面を差し替え' : '画面画像を選択'}
