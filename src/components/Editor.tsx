@@ -4,7 +4,7 @@ import { EditorCanvas } from './EditorCanvas';
 import { LayersPanel, PagesPanel } from './Panels';
 import { PropertiesPanel } from './PropertiesPanel';
 import { Icon } from './Icon';
-import { DEVICE_LABEL, makeDevice, makeImage, makeShape, makeText } from '../lib/factory';
+import { DEVICE_LABEL, uid, makeDevice, makeImage, makeShape, makeText } from '../lib/factory';
 import { loadImage, pickImageFiles, readFileAsDataURL } from '../lib/image';
 import type { DeviceModel, El } from '../types';
 import { presetById } from '../presets';
@@ -55,6 +55,22 @@ const tools = {
     const d = makeDevice({ model, width: w, x: (ip.pw - w) / 2, y: 0 });
     d.y = portrait ? ip.ph * 0.28 : (ip.ph - d.height) / 2;
     useStore.getState().addElements([d]);
+  },
+  /** iPhone 2台を並べたモックアップ（グループ化済み・後ろの1台は少し下げて重ねる） */
+  iphoneDuo() {
+    const ip = insertPoint();
+    if (!ip) return;
+    const aspect = makeDevice({ model: 'iphone', width: 100, x: 0, y: 0 }).height / 100;
+    const portrait = ip.ph >= ip.pw;
+    const w = portrait ? Math.min(ip.pw * 0.5, (ip.ph * 0.6) / aspect) : (ip.ph * 0.72) / aspect;
+    const gap = -w * 0.12; // 少し重ねる
+    const total = w * 2 + gap;
+    const x0 = (ip.pw - total) / 2;
+    const y0 = portrait ? ip.ph * 0.3 : (ip.ph - w * aspect) / 2;
+    const gid = uid();
+    const back = makeDevice({ model: 'iphone', width: w, x: x0, y: y0 + w * 0.18, name: 'iPhone（左）', groupId: gid });
+    const front = makeDevice({ model: 'iphone', width: w, x: x0 + w + gap, y: y0, name: 'iPhone（右）', groupId: gid });
+    useStore.getState().addElements([back, front]);
   },
   async image() {
     const files = await pickImageFiles();
@@ -141,6 +157,14 @@ function Toolbar() {
                   {DEVICE_LABEL[m]}
                 </button>
               ))}
+              <button
+                onClick={() => {
+                  tools.iphoneDuo();
+                  setDeviceMenu(false);
+                }}
+              >
+                iPhone ×2（Duo）
+              </button>
             </div>
           )}
         </div>
